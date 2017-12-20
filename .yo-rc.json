@@ -1,0 +1,7 @@
+{
+  "generator-jscad": {
+    "name": "scope-pi",
+    "description": "A case for a rpi that attaches to a telescope",
+    "author": "John Cole"
+  }
+}
