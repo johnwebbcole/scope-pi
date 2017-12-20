@@ -3833,12 +3833,16 @@ util = {
         // console.log('util.slices2poly', options);
         // var resolution = slices.length;
         // var offsetVector = new CSG.Vector3D(options.offset);
-        var twistangle = CSG.parseOptionAsFloat(options, 'twistangle', 0);
-        var twiststeps = CSG.parseOptionAsInt(
-            options,
-            'twiststeps',
-            CSG.defaultResolution3D
-        );
+        // var twistangle = CSG.parseOptionAsFloat(options, 'twistangle', 0);
+        var twistangle = (options && parseFloat(options.twistangle)) || 0;
+        // var twiststeps = CSG.parseOptionAsInt(
+        //     options,
+        //     'twiststeps',
+        //     CSG.defaultResolution3D
+        // );
+        var twiststeps =
+            (options && parseInt(options.twiststeps)) ||
+            CSG.defaultResolution3D;
 
         if (twistangle == 0 || twiststeps < 1) {
             twiststeps = 1;
