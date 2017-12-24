@@ -4,9 +4,11 @@
 // file       : scopePi.jscad
 
 /* exported main, getParameterDefinitions */
+// var util = require('jscad-utils');
+// require('jscad-raspberrypi');
 
 function getParameterDefinitions() {
-  var parts = 'all,print,bottom,top,spacer,buttons,tableBase,telephotoAdapter,eyepieceAdapter,lowerGuide'.split(
+  var parts = 'all,print,bottom,top,spacer,buttons,tableBase,telephotoAdapter,eyepieceAdapter,lowerGuide,upperGuide'.split(
     ','
   );
   return [
@@ -29,7 +31,7 @@ function getParameterDefinitions() {
       type: 'choice',
       values: parts,
       captions: parts,
-      initial: 'print',
+      initial: 'all',
       caption: 'Part:'
     }
   ];
@@ -44,18 +46,90 @@ function main(params) {
   params.eyepiece = true;
   params.dovetail = false;
 
+  function triangle(base, height) {
+    var points = [[0, 0], [base, 0], [0, base]];
+    var tri = CAG.fromPoints(points);
+    var body = util.poly2solid(tri, tri, height);
+    // place a centroid property
+    body.properties.centroid = new CSG.Vector3D([
+      ...util.triangle.centroid(points),
+      height / 2
+    ]);
+    return body;
+  }
+
+  function UpperGuide({ ethernet, mb }) {
+    var t = nozzel * 3;
+    var halft = t / 2;
+    var w = 18;
+    // var l = 85 / 2 - w - w / 2;
+    var base = Parts.Cube([w, w, t]);
+    var g = util.group();
+    g.add(
+      base
+        .align(ethernet, 'x')
+        .snap(ethernet, 'y', 'inside-')
+        .snap(ethernet, 'z', 'outside-', 0.21),
+      'base'
+    );
+    g.holes = [
+      triangle(w, t)
+        .rotateZ(180)
+        .snap(g.parts.base, 'xyz', 'inside-')
+        .fillet(-halft, 'z+')
+        .fillet(-halft, 'z-')
+        .color('red')
+    ];
+
+    var base2edge = util.calcSnap(ethernet, g.parts.base, 'xyz', 'inside-');
+
+    g.add(
+      Parts.Cube([base2edge[0], w, t])
+        .align(g.parts.base, 'yz')
+        .snap(g.parts.base, 'x', 'outside+')
+        .color('yellow')
+        .subtract(
+          Parts.Cube([base2edge[0], w, t + 0.001])
+            .align(g.parts.base, 'yz')
+            .snap(g.parts.base, 'x', 'outside+', -t)
+            .fillet(-t, 'z+')
+            .color('red')
+        ),
+      'edge1'
+    );
+
+    // g.add(
+    //   Parts.Cube([w, t / 2, t])
+    //     .align(g.parts.base, 'xz')
+    //     .snap(g.parts.base, 'y', 'outside+'),
+    //   'edge2'
+    // );
+    var eth2board = util.calcSnap(mb, ethernet, 'xyz', 'inside-');
+    // console.log('base2board', base2board);
+    g.add(
+      Parts.Cube([w + base2edge[0], eth2board[1], 10])
+        .snap(g.parts.base, 'x', 'inside+')
+        .snap(g.parts.base, 'y', 'outside+')
+        .snap(g.parts.base, 'z', 'inside+')
+        .subtract(
+          Parts.Cube([w - 2, eth2board[1], 10])
+            .align(g.parts.base, 'x')
+            .snap(g.parts.base, 'y', 'outside+')
+            .snap(g.parts.base, 'z', 'inside-', -0.21)
+            .rotateX(90)
+            .fillet(eth2board[1] * -0.99, 'z-')
+            .rotateX(-90)
+            .bisect('x', eth2board[1])
+            .parts.positive.bisect('x', -eth2board[1])
+            .parts.negative.color('red')
+        ),
+      'ramp'
+    );
+
+    return g.combine();
+  }
+
   function RibbonGuide() {
-    function triangle(base, height) {
-      var points = [[0, 0], [base, 0], [0, base]];
-      var tri = CAG.fromPoints(points);
-      var body = util.poly2solid(tri, tri, height);
-      // place a centroid property
-      body.properties.centroid = new CSG.Vector3D([
-        ...util.triangle.centroid(points),
-        height / 2
-      ]);
-      return body;
-    }
     var t = nozzel * 3;
     var haflt = t / 2;
     var w = 18;
@@ -372,6 +446,9 @@ function main(params) {
     lowerGuide: function() {
       return [...pi.toArray('lrguide')];
     },
+    upperGuide: function() {
+      return [UpperGuide(pi.parts)];
+    },
     print: function() {
       var p = [];
       var holes = cutouts.combine();
@@ -413,6 +490,14 @@ function main(params) {
           .Zero()
       );
 
+      p.push(
+        union(parts.upperGuide())
+          .rotateX(90)
+          .align(spacer, 'xy')
+          .translate([0, -10, 0])
+          .Zero()
+      );
+
       if (params.dovetail)
         p.push(
           union(parts.tableBase())
@@ -442,6 +527,7 @@ function main(params) {
         parts.spacer(holes),
         parts.buttons(),
         ...parts.interior(),
+        ...parts.upperGuide(),
         parts.eyepieceAdapter({ alpha: 0.5 })
       ];
     },
